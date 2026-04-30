@@ -1,0 +1,42 @@
+name: Deploy Hermes API to AWS
+
+on:
+  push:
+    branches:
+      - main  # 当你把代码推送到 main 分支时自动触发部署
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20'
+
+      - name: Setup AWS SAM CLI
+        uses: aws-actions/setup-sam@v2
+        with:
+          use-installer: true
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1  # 确保这里是你想要部署的 AWS 区域
+
+      - name: Build SAM Application
+        run: sam build --use-container
+
+      - name: Deploy SAM Application
+        run: |
+          sam deploy \
+            --stack-name hermes-ocr-api-stack \
+            --capabilities CAPABILITY_IAM \
+            --resolve-s3 \
+            --no-fail-on-empty-changeset

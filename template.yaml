@@ -1,0 +1,24 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Hermes OCR Microservices API
+
+Resources:
+  HermesRecognizeFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: lambda.handler
+      Runtime: nodejs20.x
+      CodeUri: .
+      MemorySize: 256
+      Timeout: 30  # 适当延长超时时间，防止冷启动或轻量推理时被中断
+      Events:
+        RecognizeApi:
+          Type: Api
+          Properties:
+            Path: /api/v1/recognize
+            Method: post
+
+Outputs:
+  ApiGatewayEndpoint:
+    Description: "API Gateway endpoint URL for Prod environment"
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/api/v1/recognize"
