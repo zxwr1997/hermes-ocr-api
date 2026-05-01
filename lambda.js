@@ -6,7 +6,8 @@ const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 
 const app = express();
 app.use(cors());
-app.use(express.json());
+// 强制解析所有格式的请求体，不管前端带什么标头，统统按 JSON 拆包
+app.use(express.json({ strict: false, type: '*/*' }));
 
 // 1. 初始化 S3 客户端（部署到 AWS 后会自动获取环境变量里的权限）
 const s3Client = new S3Client({ region: process.env.AWS_REGION || 'us-east-1' });
