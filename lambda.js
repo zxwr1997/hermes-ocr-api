@@ -1,7 +1,8 @@
 const serverless = require('serverless-http');
 const express = require('express');
 const cors = require('cors');
-const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
+// 💡 修改点 1：在这里新增了 GetObjectCommand 的引入
+const { S3Client, PutObjectCommand, GetObjectCommand } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 
 const app = express();
@@ -13,7 +14,7 @@ app.use(express.json({ strict: false, type: '*/*' }));
 const s3Client = new S3Client({ region: process.env.AWS_REGION || 'us-east-1' });
 const BUCKET_NAME = process.env.UPLOAD_BUCKET_NAME;
 
-// ⚠️ 记得把这里换成你 Kaggle 跑出来的那个 localtunnel 网址
+// ⚠️ 这里保留了你刚刚拿到的最新 Kaggle 穿透网址
 const KAGGLE_URL = "https://game-radiator-padding.ngrok-free.dev";
 
 // ==========================================
@@ -53,22 +54,28 @@ app.post('/api/v1/recognize', async (req, res) => {
         return res.status(400).json({ error: "缺少 S3 文件名" });
     }
 
-    // 拼装出这张图片在云端的完整访问地址
-    const s3Url = `https://${BUCKET_NAME}.s3.amazonaws.com/${file_name}`;
-    console.log(`准备让大模型识别图片: ${s3Url}`);
-
     try {
-        // 将包含了图片 URL 的指令发给 Kaggle 算力节点
+        // 💡 修改点 2：为 Kaggle 签发带有加密签名的“临时下载通行证”
+        const getCommand = new GetObjectCommand({
+            Bucket: BUCKET_NAME,
+            Key: file_name
+        });
+        
+        // 生成有效期为 5 分钟 (300秒) 的下载链接
+        const s3SignedDownloadUrl = await getSignedUrl(s3Client, getCommand, { expiresIn: 300 });
+        console.log(`准备让大模型识别图片，已签发通行证: ${s3SignedDownloadUrl.split('?')[0]}...`);
+
+        // 将包含了带签名 URL 的指令发给 Kaggle 算力节点
         const response = await fetch(`${KAGGLE_URL}/predict`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 prompt: "提取并识别这张公式图片",
-                image_url: s3Url
+                image_url: s3SignedDownloadUrl // 传入带签名的安全链接
             })
         });
 
-        if (!response.ok) throw new Error("算力节点异常");
+        if (!response.ok) throw new Error(`算力节点异常，状态码: ${response.status}`);
         
         const data = await response.json();
 
@@ -79,7 +86,7 @@ app.post('/api/v1/recognize', async (req, res) => {
 
     } catch (error) {
         console.error("转发 Kaggle 失败:", error);
-        res.status(500).json({ error: "无法连接到大模型推理节点" });
+        res.status(500).json({ error: "无法连接到大模型推理节点", details: error.message });
     }
 });
 
