@@ -3,6 +3,17 @@ Transform: AWS::Serverless-2016-10-31
 Description: Hermes OCR Microservices API
 
 Resources:
+  # 1. 新增：定义一个 S3 存储桶用来存公式图片
+  HermesImagesBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders: ['*']
+            AllowedMethods: [GET, PUT, POST, DELETE, HEAD]
+            AllowedOrigins: ['*'] # 允许跨域直传
+
+  # 2. 修改：为 Lambda 函数添加访问这个 S3 的权限
   HermesRecognizeFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -10,15 +21,31 @@ Resources:
       Runtime: nodejs20.x
       CodeUri: .
       MemorySize: 256
-      Timeout: 30  # 适当延长超时时间，防止冷启动或轻量推理时被中断
+      Timeout: 30
+      Environment:
+        Variables:
+          # 将存储桶的名字作为环境变量传给 Node.js 代码
+          UPLOAD_BUCKET_NAME: !Ref HermesImagesBucket
+      Policies:
+        - S3CrudPolicy:
+            BucketName: !Ref HermesImagesBucket
       Events:
         RecognizeApi:
           Type: Api
           Properties:
             Path: /api/v1/recognize
             Method: post
+        # 如果走预签名模式，通常会多开一个专门获取上传链接的接口
+        GetUploadUrlApi:
+          Type: Api
+          Properties:
+            Path: /api/v1/upload-url
+            Method: get
 
 Outputs:
   ApiGatewayEndpoint:
-    Description: "API Gateway endpoint URL for Prod environment"
+    Description: "API Gateway endpoint URL"
     Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/api/v1/recognize"
+  ImageBucketName:
+    Description: "S3 Bucket for OCR Images"
+    Value: !Ref HermesImagesBucket

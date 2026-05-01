@@ -49,7 +49,7 @@
             document.getElementById('rendered-math').style.display = 'none';
 
             try {
-                const response = await fetch('http://localhost:3000/api/v1/recognize', {
+                const response = await fetch(' https://fm0yukws27.execute-api.us-east-1.amazonaws.com/Prod/api/v1/recognize', {
                     method: 'POST',
                     body: formData
                 });
